@@ -1,18 +1,53 @@
 # SOC Home Lab — Threat Detection with Splunk
- 
+
+A 3-VM cybersecurity home lab simulating a real SOC environment.
+Kali Linux attacks Windows 11, Splunk on Ubuntu detects and alerts.
+
 ## Architecture
-Kali Linux (Attacker) → Windows 11 (Victim + Sysmon) → Ubuntu/Splunk (SIEM)
- 
-## What I built
-- Deployed Splunk SIEM on Ubuntu, configured to ingest Windows 11 logs
-- Installed Sysmon with SwiftOnSecurity config for deep endpoint telemetry
-- Simulated 4 attack scenarios: port scan, brute force, RDP breach, persistence
-- Wrote SPL detection rules for each attack type
-- Built real-time alerts and a 5-panel SOC dashboard
-- Documented findings in a formal incident report (MITRE ATT&CK mapped)
- 
-## Dashboard
-![SOC Dashboard](screenshots/splunk-dashboard.png)
- 
-## Attack Chain Detected
-![Attack Chain](screenshots/attack-chain-timechart.png)
+
+![Lab Architecture](architecture/lab-diagram.png)
+
+| VM | Role | IP |
+|---|---|---|
+| Kali Linux | Attacker | 10.10.1.59 |
+| Windows 11 | Victim + Sysmon | 10.10.1.11 |
+| Ubuntu 22.04 | Splunk SIEM | 10.10.1.9 |
+
+## Tools used
+
+Splunk Enterprise · Sysmon (SwiftOnSecurity config) ·
+Splunk Universal Forwarder · Nmap · Hydra · xfreerdp ·
+VMware Workstation · MITRE ATT&CK Navigator
+
+## Attack scenarios simulated
+
+| Attack | Tool | Splunk Detection |
+|---|---|---|
+| Port scan | Nmap | Sysmon EventCode=3 |
+| RDP brute force | Hydra | EventID 4625 ≥5 failures |
+| Successful RDP breach | xfreerdp | EventID 4624 Logon_Type=10 |
+| Backdoor account creation | net user | EventID 4720 |
+
+## Splunk dashboard
+
+![SOC Dashboard](Screenshots/splunk-dashboard.png)
+
+## Attack chain detected — brute force to breach
+
+![Attack Chain](Screenshots/attack-chain-timechart.png)
+
+## MITRE ATT&CK mapping
+
+| Technique | ID |
+|---|---|
+| Brute Force: Password Guessing | T1110.001 |
+| Remote Services: RDP | T1021.001 |
+| Create Account: Local Account | T1136.001 |
+
+## Repo structure
+
+- `splunk-queries/` — all SPL detection queries used
+- `incident-reports/` — formal incident report INC-LAB-001
+- `Screenshots/` — dashboard, alerts, attack chain evidence
+- `architecture/` — lab diagram
+- `configs/` — inputs.conf for Splunk Forwarder
