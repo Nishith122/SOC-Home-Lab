@@ -1,1 +1,194 @@
 
+# ============================================================
+# SOC Home Lab — Splunk Detection Queries
+# Analyst: [Your Name] | Lab Date: April 2026
+# Attacker: 10.10.1.59 (Kali) | Victim: 10.10.1.11 (Win11)
+# ============================================================
+
+
+# ------------------------------------------------------------
+# SECTION 1 — RECONNAISSANCE DETECTION
+# ------------------------------------------------------------
+
+# 1.1 Detect port scan via Sysmon network connections
+# High volume of connections from same source = port scan
+index=sysmon_logs EventCode=3 earliest=-10m
+| stats count by SourceIp, DestinationPort
+| sort -count
+| head 30
+
+# 1.2 Port scan from specific attacker IP
+index=sysmon_logs EventCode=3 SourceIp="10.10.1.59"
+| stats count by DestinationPort
+| sort -count
+
+# 1.3 All network connections in last 10 minutes
+index=sysmon_logs EventCode=3 earliest=-10m
+| table _time, SourceIp, DestinationIp, DestinationPort
+| sort -_time
+
+
+# ------------------------------------------------------------
+# SECTION 2 — BRUTE FORCE DETECTION
+# ------------------------------------------------------------
+
+# 2.1 Failed logins — basic detection
+index=windows_logs EventCode=4625 earliest=-15m
+| stats count as FailedAttempts by Account_Name, Source_Network_Address
+| where FailedAttempts >= 3
+| sort -FailedAttempts
+
+# 2.2 Brute force alert query (used in Splunk alert — runs every 5 min)
+index=windows_logs EventCode=4625 earliest=-5m
+| stats count as attempts by Account_Name, Source_Network_Address
+| where attempts >= 5
+
+# 2.3 Failed logins over time (timechart for dashboard)
+index=windows_logs EventCode=4625 earliest=-24h
+| timechart span=1h count
+
+# 2.4 Top attacking source IPs (dashboard panel)
+index=windows_logs EventCode=4625 earliest=-24h
+| stats count by Source_Network_Address
+| sort -count
+| head 10
+
+# 2.5 Failed logins with full details
+index=windows_logs EventCode=4625
+| table _time, Account_Name, Source_Network_Address, Failure_Reason, host
+| sort -_time
+
+
+# ------------------------------------------------------------
+# SECTION 3 — RDP BREACH DETECTION
+# ------------------------------------------------------------
+
+# 3.1 Successful RDP logins (Logon_Type=10)
+index=windows_logs EventCode=4624 Logon_Type=10
+| table _time, Account_Name, Source_Network_Address, Logon_Type, host
+
+# 3.2 Full attack chain — failures then success (dashboard panel)
+index=windows_logs (EventCode=4625 OR EventCode=4624) earliest=-1h
+| eval Status=if(EventCode=4624,"SUCCESS","FAILED")
+| timechart span=5m count by Status
+
+# 3.3 Successful login immediately after failures — breach confirmation
+index=windows_logs EventCode=4624 Logon_Type=10 earliest=-30m
+| table _time, Account_Name, Source_Network_Address
+
+# 3.4 All logon types summary
+index=windows_logs EventCode=4624
+| stats count by Logon_Type
+
+# 3.5 Logon type reference:
+# Type 2  = Interactive (keyboard)
+# Type 3  = Network (file share)
+# Type 5  = Service account
+# Type 10 = RDP (high risk — alert on this)
+
+
+# ------------------------------------------------------------
+# SECTION 4 — PERSISTENCE DETECTION
+# ------------------------------------------------------------
+
+# 4.1 New user account created (real-time alert query)
+index=windows_logs EventCode=4720 earliest=-5m
+
+# 4.2 New account creation with details (dashboard panel)
+index=windows_logs EventCode=4720 earliest=-24h
+| table _time, SAM_Account_Name, Account_Name, ComputerName
+
+# 4.3 Account added to admin group (EventID 4732)
+index=windows_logs EventCode=4732 earliest=-24h
+| table _time, Account_Name, Group_Name, ComputerName
+
+# 4.4 Full persistence detection — creation + group add
+index=windows_logs EventCode IN (4720, 4732) earliest=-1h
+| eval Action=case(
+    EventCode=4720, "Account Created",
+    EventCode=4732, "Added to Admin Group")
+| table _time, Action, Account_Name, SAM_Account_Name, ComputerName
+| sort _time
+
+
+# ------------------------------------------------------------
+# SECTION 5 — SYSMON PROCESS DETECTION
+# ------------------------------------------------------------
+
+# 5.1 All process creation events
+index=sysmon_logs EventCode=1 earliest=-15m
+| table _time, Image, CommandLine, ParentImage, User
+| head 20
+
+# 5.2 Suspicious commands run post-compromise
+index=sysmon_logs EventCode=1 earliest=-15m
+| search CommandLine="*whoami*" OR CommandLine="*ipconfig*"
+    OR CommandLine="*net user*" OR CommandLine="*net localgroup*"
+| table _time, Image, CommandLine, ParentImage, User
+
+# 5.3 Parent-child process chain (lateral movement detection)
+index=sysmon_logs EventCode=1 earliest=-1h
+| stats count by ParentImage, Image
+| sort -count
+
+# 5.4 Sysmon EventCode summary (health check)
+index=sysmon_logs | stats count by EventCode
+
+# Sysmon EventCode reference:
+# 1  = Process creation
+# 3  = Network connection
+# 7  = Image loaded (DLL)
+# 10 = Process accessed
+# 11 = File created
+# 12 = Registry object created/deleted
+# 13 = Registry value set
+# 22 = DNS query
+
+
+# ------------------------------------------------------------
+# SECTION 6 — DASHBOARD QUERIES
+# ------------------------------------------------------------
+
+# Panel 1 — Failed logins over time
+index=windows_logs EventCode=4625 earliest=-24h
+| timechart span=1h count
+
+# Panel 2 — Top attacking IPs
+index=windows_logs EventCode=4625 earliest=-24h
+| stats count by Source_Network_Address
+| sort -count
+| head 10
+
+# Panel 3 — Successful RDP logins
+index=windows_logs EventCode=4624 Logon_Type=10
+| table _time, Account_Name, Source_Network_Address
+
+# Panel 4 — New accounts created
+index=windows_logs EventCode=4720 earliest=-24h
+| table _time, SAM_Account_Name, ComputerName
+
+# Panel 5 — Suspicious processes via Sysmon
+index=sysmon_logs EventCode=1 earliest=-24h
+| table _time, Image, CommandLine, ParentImage, User
+| head 20
+
+
+# ------------------------------------------------------------
+# SECTION 7 — HEALTH CHECK QUERIES
+# ------------------------------------------------------------
+
+# 7.1 Confirm all indexes receiving data
+index=* | stats count by index, sourcetype
+
+# 7.2 Confirm Windows 11 host is sending logs
+index=* host=Win11 | stats count by sourcetype
+
+# 7.3 Check last event received time per sourcetype
+index=windows_logs
+| stats max(_time) as LastEvent by sourcetype
+| eval LastEvent=strftime(LastEvent,"%Y-%m-%d %H:%M:%S")
+
+# 7.4 Event volume last 24h
+index=windows_logs OR index=sysmon_logs earliest=-24h
+| timechart span=1h count by index
+
