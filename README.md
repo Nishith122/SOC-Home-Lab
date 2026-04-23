@@ -3,6 +3,14 @@
 A 3-VM cybersecurity home lab simulating a real SOC environment.
 Kali Linux attacks Windows 11, Splunk on Ubuntu detects and alerts.
 
+## 🔥 Attack Scenario (End-to-End)
+
+1. Attacker launched brute force attack using Hydra
+2. Multiple failed logins detected (EventID 4625)
+3. Successful RDP login (EventID 4624)
+4. Persistence established (EventID 4720)
+5. Splunk triggered alert → Incident response executed
+
 ## Architecture
 
 ![Lab Architecture](architecture/lab-diagram.png)
