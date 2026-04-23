@@ -34,7 +34,7 @@ VMware Workstation · MITRE ATT&CK Navigator
 
 ## Attack chain detected — brute force to breach
 
-![Attack Chain](screenshots/attack chain timechart.png)
+![Attack Chain](screenshots/The-attack-chain-timechart.png)
 
 ## MITRE ATT&CK mapping
 
