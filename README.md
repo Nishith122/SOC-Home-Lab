@@ -30,11 +30,11 @@ VMware Workstation · MITRE ATT&CK Navigator
 
 ## Splunk dashboard
 
-![SOC Dashboard](Screenshots/splunk-dashboard.png)
+![SOC Dashboard](screenshots/splunk-dashboard1.png/)
 
 ## Attack chain detected — brute force to breach
 
-![Attack Chain](Screenshots/attack-chain-timechart.png)
+![Attack Chain](screenshots/attack chain timechart.png)
 
 ## MITRE ATT&CK mapping
 
